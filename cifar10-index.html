@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>AI 圖片分類器</title>
+    
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.11.0/dist/tf.min.js"></script>
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-user-select: none;
+            user-select: none;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 16px;
+        }
+        
+        .container {
+            background: white;
+            max-width: 600px;
+            margin: 0 auto;
+            border-radius: 20px;
+            padding: 20px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        
+        h1 {
+            color: #333;
+            font-size: clamp(24px, 6vw, 32px);
+            margin-bottom: 8px;
+        }
+        
+        .subtitle {
+            color: #666;
+            font-size: clamp(13px, 3.5vw, 15px);
+        }
+        
+        .status {
+            text-align: center;
+            padding: 12px;
+            border-radius: 10px;
+            margin-bottom: 16px;
+            font-weight: 600;
+            font-size: clamp(13px, 3.5vw, 15px);
+        }
+        
+        .status.loading { background: #fff3cd; color: #856404; }
+        .status.ready { background: #d4edda; color: #155724; }
+        .status.error { background: #f8d7da; color: #721c24; }
+        
+        .info-box {
+            background: #e3f2fd;
+            padding: 12px;
+            border-radius: 10px;
+            margin-bottom: 16px;
+            border-left: 4px solid #2196f3;
+        }
+        
+        .info-box h3 {
+            color: #1976d2;
+            font-size: clamp(14px, 3.5vw, 16px);
+            margin-bottom: 8px;
+        }
+        
+        .categories {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 8px;
+            font-size: clamp(11px, 2.8vw, 13px);
+            color: #333;
+        }
+        
+        .category-item {
+            text-align: center;
+            padding: 6px;
+            background: white;
+            border-radius: 6px;
+        }
+        
+        .upload-area {
+            border: 3px dashed #667eea;
+            border-radius: 12px;
+            padding: 30px 20px;
+            text-align: center;
+            margin-bottom: 16px;
+            cursor: pointer;
+            transition: all 0.3s;
+            background: #f8f9fa;
+        }
+        
+        .upload-area:hover {
+            border-color: #764ba2;
+            background: #f0f0f0;
+        }
+        
+        .upload-area.dragover {
+            border-color: #4caf50;
+            background: #e8f5e9;
+        }
+        
+        .upload-icon {
+            font-size: 48px;
+            margin-bottom: 12px;
+        }
+        
+        .upload-text {
+            color: #666;
+            font-size: clamp(14px, 3.5vw, 16px);
+            margin-bottom: 12px;
+        }
+        
+        input[type="file"] {
+            display: none;
+        }
+        
+        .btn {
+            display: inline-block;
+            padding: 12px 24px;
+            font-size: clamp(14px, 3.5vw, 16px);
+            font-weight: 600;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin: 4px;
+        }
+        
+        .btn:active {
+            transform: scale(0.95);
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+        
+        .preview-container {
+            margin: 20px 0;
+            text-align: center;
+        }
+        
+        #preview {
+            max-width: 100%;
+            max-height: 300px;
+            border-radius: 10px;
+            display: none;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        
+        .result {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 12px;
+            margin-top: 20px;
+        }
+        
+        .result-title {
+            text-align: center;
+            color: #667eea;
+            font-size: clamp(18px, 4.5vw, 24px);
+            font-weight: bold;
+            margin-bottom: 16px;
+        }
+        
+        .result-main {
+            text-align: center;
+            padding: 20px;
+            background: white;
+            border-radius: 10px;
+            margin-bottom: 16px;
+        }
+        
+        .result-icon {
+            font-size: clamp(60px, 15vw, 80px);
+            margin-bottom: 12px;
+        }
+        
+        .result-label {
+            font-size: clamp(24px, 6vw, 32px);
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 8px;
+        }
+        
+        .result-confidence {
+            font-size: clamp(16px, 4vw, 20px);
+            color: #666;
+        }
+        
+        .probabilities {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 8px;
+        }
+        
+        .prob-item {
+            background: white;
+            padding: 10px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .prob-item.top {
+            border: 2px solid #667eea;
+        }
+        
+        .prob-icon {
+            font-size: 24px;
+            flex-shrink: 0;
+        }
+        
+        .prob-info {
+            flex: 1;
+            min-width: 0;
+        }
+        
+        .prob-label {
+            font-size: clamp(13px, 3.2vw, 15px);
+            font-weight: 600;
+            color: #333;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        
+        .prob-bar-container {
+            background: #e0e0e0;
+            height: 6px;
+            border-radius: 3px;
+            margin: 4px 0;
+            overflow: hidden;
+        }
+        
+        .prob-bar {
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            height: 100%;
+            transition: width 0.5s ease;
+        }
+        
+        .prob-percent {
+            font-size: clamp(11px, 2.8vw, 13px);
+            color: #666;
+        }
+        
+        @media (min-width: 600px) {
+            .probabilities {
+                grid-template-columns: repeat(3, 1fr);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🤖 AI 圖片分類器</h1>
+            <div class="subtitle">上傳照片，讓 AI 告訴你是什麼</div>
+        </div>
+        
+        <div id="status" class="status loading">正在載入 AI 模型...</div>
+        
+        <div class="info-box">
+            <h3>📋 可辨識的物品</h3>
+            <div class="categories">
+                <div class="category-item">✈️ 飛機</div>
+                <div class="category-item">🚗 汽車</div>
+                <div class="category-item">🐦 鳥</div>
+                <div class="category-item">🐱 貓</div>
+                <div class="category-item">🦌 鹿</div>
+                <div class="category-item">🐕 狗</div>
+                <div class="category-item">🐸 青蛙</div>
+                <div class="category-item">🐴 馬</div>
+                <div class="category-item">🚢 船</div>
+                <div class="category-item">🚚 卡車</div>
+            </div>
+        </div>
+        
+        <div class="upload-area" id="uploadArea" onclick="document.getElementById('fileInput').click()">
+            <div class="upload-icon">📷</div>
+            <div class="upload-text">點擊上傳照片或拖曳到這裡</div>
+            <button class="btn btn-primary">選擇照片</button>
+        </div>
+        
+        <input type="file" id="fileInput" accept="image/*" onchange="handleFileSelect(event)">
+        
+        <div class="preview-container">
+            <img id="preview" alt="預覽圖片">
+        </div>
+        
+        <div id="result"></div>
+    </div>
+    
+    <script src="cifar10-app.js"></script>
+</body>
+</html>
